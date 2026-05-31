@@ -32,7 +32,19 @@ function decodeQRData(raw: string): QRPayload | null {
     const url = new URL(raw);
     const d = url.searchParams.get("d");
     if (!d) return null;
-    return JSON.parse(decodeURIComponent(escape(atob(d))));
+    const p = JSON.parse(atob(d));
+    // Normalize short keys to full keys
+    return {
+      m: p.m,
+      y: p.y,
+      co2: p.c ?? p.co2,
+      af: p.a ?? p.af,
+      cost: p.cost ?? 0,
+      months: p.months ?? 0,
+      medal: p.x === "g" ? "gold" : p.x === "s" ? "silver" : p.medal ?? "bronze",
+      km: p.km ?? 0,
+      trees: p.trees ?? 0,
+    };
   } catch {
     return null;
   }
@@ -44,9 +56,13 @@ export default function ProyectorPage() {
   const particlesRef = useRef<Particle[]>([]);
   const dataRef = useRef<QRPayload | null>(null);
   const qrBoundsRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+  const lostFramesRef = useRef<number>(0);
   const animFrameRef = useRef<number>(0);
   const [status, setStatus] = useState<"idle" | "loading" | "active" | "error">("idle");
   const [detected, setDetected] = useState(false);
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
+  const [activeCameraId, setActiveCameraId] = useState<string | undefined>(undefined);
+  const cleanupRef = useRef<(() => void) | undefined>(undefined);
 
   const spawnParticles = useCallback((cx: number, topY: number, af: number) => {
     const count = Math.round(Math.min(Math.max(af / 6, 2), 8));
@@ -220,7 +236,7 @@ export default function ProyectorPage() {
 
     import("jsqr").then(({ default: jsQR }) => {
       const code = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: "dontInvert",
+        inversionAttempts: "attemptBoth",
       });
 
       if (code) {
@@ -229,27 +245,56 @@ export default function ProyectorPage() {
           dataRef.current = decoded;
           const tl = code.location.topLeftCorner;
           const br = code.location.bottomRightCorner;
-          qrBoundsRef.current = {
+          const newBounds = {
             x: tl.x,
             y: tl.y,
             w: br.x - tl.x,
             h: br.y - tl.y,
           };
+          // Lerp bounds for smoother tracking
+          if (qrBoundsRef.current) {
+            const k = 0.4;
+            qrBoundsRef.current = {
+              x: qrBoundsRef.current.x + (newBounds.x - qrBoundsRef.current.x) * k,
+              y: qrBoundsRef.current.y + (newBounds.y - qrBoundsRef.current.y) * k,
+              w: qrBoundsRef.current.w + (newBounds.w - qrBoundsRef.current.w) * k,
+              h: qrBoundsRef.current.h + (newBounds.h - qrBoundsRef.current.h) * k,
+            };
+          } else {
+            qrBoundsRef.current = newBounds;
+          }
           setDetected(true);
         }
       } else {
-        qrBoundsRef.current = null;
-        setDetected(false);
+        // Don't immediately clear — keep last position for 10 frames
+        if (qrBoundsRef.current) {
+          lostFramesRef.current = (lostFramesRef.current ?? 0) + 1;
+          if (lostFramesRef.current > 10) {
+            qrBoundsRef.current = null;
+            setDetected(false);
+          }
+        }
       }
     });
   }, []);
 
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async (deviceId?: string) => {
+    cleanupRef.current?.();
     setStatus("loading");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
-      });
+      const constraints: MediaStreamConstraints = {
+        video: deviceId
+          ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+          : { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      // Enumerate cameras after permission is granted
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter((d) => d.kind === "videoinput");
+      setCameras(videoDevices);
+      const activeTrack = stream.getVideoTracks()[0];
+      setActiveCameraId(activeTrack.getSettings().deviceId);
 
       const video = videoRef.current!;
       video.srcObject = stream;
@@ -261,15 +306,17 @@ export default function ProyectorPage() {
 
       setStatus("active");
 
-      // QR scan interval
-      const scanInterval = setInterval(scanQR, 200);
+      // QR scan interval — 100ms for more responsive tracking
+      const scanInterval = setInterval(scanQR, 100);
       animFrameRef.current = requestAnimationFrame(drawFrame);
 
-      return () => {
+      const cleanup = () => {
         clearInterval(scanInterval);
         cancelAnimationFrame(animFrameRef.current);
         stream.getTracks().forEach((t) => t.stop());
       };
+      cleanupRef.current = cleanup;
+      return cleanup;
     } catch {
       setStatus("error");
     }
@@ -320,6 +367,25 @@ export default function ProyectorPage() {
       {status === "active" && detected && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-vu-accent/90 text-vu-bg text-xs font-medium px-4 py-2 rounded-full">
           Celular detectado
+        </div>
+      )}
+
+      {/* Camera selector */}
+      {status === "active" && cameras.length > 1 && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+          {cameras.map((cam, i) => (
+            <button
+              key={cam.deviceId}
+              onClick={() => { setActiveCameraId(cam.deviceId); startCamera(cam.deviceId); }}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                activeCameraId === cam.deviceId
+                  ? "bg-vu-accent text-vu-bg"
+                  : "bg-vu-bg/70 text-vu-textSecondary border border-vu-bgAlt"
+              }`}
+            >
+              {cam.label || `Cámara ${i + 1}`}
+            </button>
+          ))}
         </div>
       )}
 

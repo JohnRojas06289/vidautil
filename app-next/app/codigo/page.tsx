@@ -17,21 +17,18 @@ export default function CodigoPage() {
       return;
     }
 
+    // Only encode what the projector needs — smaller payload = simpler QR
     const payload = {
       m: footprint.modelName,
       y: yearsOfUse,
-      co2: footprint.totalAvoidedCO2,
-      af: footprint.annualFootprint,
-      cost: footprint.costOfChangeNow,
-      months: footprint.monthsEquivalent,
-      medal: footprint.medal,
-      km: footprint.equivalenceKmCar,
-      trees: footprint.equivalenceTrees,
+      c: footprint.totalAvoidedCO2,
+      a: Math.round(footprint.annualFootprint),
+      x: footprint.medal[0], // b/s/g
     };
 
-    const base64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    const base64 = btoa(JSON.stringify(payload));
     const origin = window.location.origin;
-    setQrUrl(`${origin}/resultado?d=${base64}`);
+    setQrUrl(`${origin}/r?d=${base64}`);
   }, [footprint, phoneModelText, yearsOfUse, router]);
 
   if (!footprint || !phoneModelText || !qrUrl) return null;
@@ -61,7 +58,7 @@ export default function CodigoPage() {
           transition={{ type: "spring", stiffness: 150, damping: 15 }}
           className="bg-white p-5 rounded-2xl"
         >
-          <QRCodeSVG value={qrUrl} size={260} bgColor="#ffffff" fgColor="#000000" level="M" />
+          <QRCodeSVG value={qrUrl} size={280} bgColor="#ffffff" fgColor="#000000" level="L" />
         </motion.div>
 
         <motion.p
