@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { Leaf } from "lucide-react";
+import { Leaf, Monitor } from "lucide-react";
 import { YearsSlider } from "@/components/YearsSlider";
 import { useVidaUtilStore } from "@/lib/store";
 import { calculateFootprint, findPhoneByText } from "@/lib/carbonCalc";
@@ -65,6 +65,14 @@ export default function HomePage() {
         <p className="text-xs text-vu-textSecondary text-center opacity-60">
           Datos basados en Belkhir &amp; Elmeligi (2018) y reportes ambientales de fabricantes.
         </p>
+
+        <button
+          onClick={() => router.push("/proyector")}
+          className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-vu-bgAlt text-vu-textSecondary text-sm hover:border-vu-accent hover:text-vu-accentLight transition-colors"
+        >
+          <Monitor className="w-4 h-4" />
+          Abrir proyector
+        </button>
       </div>
     </main>
   );
