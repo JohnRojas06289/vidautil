@@ -10,15 +10,15 @@ import { EquivalenceCard } from "@/components/EquivalenceCard";
 
 export default function HuellaPage() {
   const router = useRouter();
-  const { selectedPhone, yearsOfUse, footprint } = useVidaUtilStore();
+  const { phoneModelText, yearsOfUse, footprint } = useVidaUtilStore();
 
   useEffect(() => {
-    if (!footprint || !selectedPhone) {
+    if (!footprint || !phoneModelText) {
       router.replace("/");
     }
-  }, [footprint, selectedPhone, router]);
+  }, [footprint, phoneModelText, router]);
 
-  if (!footprint || !selectedPhone) return null;
+  if (!footprint || !phoneModelText) return null;
 
   return (
     <main className="min-h-screen bg-vu-bg flex flex-col items-center px-4 py-10">

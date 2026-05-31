@@ -1,29 +1,22 @@
 import { create } from "zustand";
-import { PhoneModel } from "./phoneData";
 import { FootprintResult } from "./carbonCalc";
 
 interface VidaUtilState {
-  selectedPhone: PhoneModel | null;
+  phoneModelText: string;
   yearsOfUse: number;
-  batteryState: number;
   footprint: FootprintResult | null;
-  markerId: number | null;
-  setPhone: (p: PhoneModel) => void;
+  setPhoneText: (t: string) => void;
   setYears: (y: number) => void;
-  setBattery: (b: number) => void;
-  setFootprint: (f: FootprintResult, markerId: number) => void;
+  setFootprint: (f: FootprintResult) => void;
   reset: () => void;
 }
 
 export const useVidaUtilStore = create<VidaUtilState>((set) => ({
-  selectedPhone: null,
+  phoneModelText: "",
   yearsOfUse: 2,
-  batteryState: 3,
   footprint: null,
-  markerId: null,
-  setPhone: (p) => set({ selectedPhone: p }),
+  setPhoneText: (t) => set({ phoneModelText: t }),
   setYears: (y) => set({ yearsOfUse: y }),
-  setBattery: (b) => set({ batteryState: b }),
-  setFootprint: (f, markerId) => set({ footprint: f, markerId }),
-  reset: () => set({ selectedPhone: null, yearsOfUse: 2, batteryState: 3, footprint: null, markerId: null }),
+  setFootprint: (f) => set({ footprint: f }),
+  reset: () => set({ phoneModelText: "", yearsOfUse: 2, footprint: null }),
 }));

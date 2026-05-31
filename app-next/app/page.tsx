@@ -1,25 +1,21 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { Leaf } from "lucide-react";
-import { PhoneSelector } from "@/components/PhoneSelector";
 import { YearsSlider } from "@/components/YearsSlider";
-import { BatterySelector } from "@/components/BatterySelector";
 import { useVidaUtilStore } from "@/lib/store";
-import { calculateFootprint } from "@/lib/carbonCalc";
-import { mapToMarkerId } from "@/lib/markerMapping";
+import { calculateFootprint, findPhoneByText } from "@/lib/carbonCalc";
 
 export default function HomePage() {
   const router = useRouter();
-  const { selectedPhone, yearsOfUse, batteryState, setPhone, setYears, setBattery, setFootprint } =
+  const { phoneModelText, yearsOfUse, setPhoneText, setYears, setFootprint } =
     useVidaUtilStore();
 
-  const isReady = selectedPhone !== null && yearsOfUse > 0;
+  const isReady = phoneModelText.trim().length > 0 && yearsOfUse > 0;
 
   function handleSubmit() {
-    if (!selectedPhone) return;
-    const footprint = calculateFootprint(selectedPhone, yearsOfUse, batteryState);
-    const markerId = mapToMarkerId(footprint);
-    setFootprint(footprint, markerId);
+    const phone = findPhoneByText(phoneModelText);
+    const footprint = calculateFootprint(phone, yearsOfUse, phoneModelText.trim());
+    setFootprint(footprint);
     router.push("/huella");
   }
 
@@ -39,9 +35,19 @@ export default function HomePage() {
         </div>
 
         <div className="flex flex-col gap-6 bg-vu-bgAlt rounded-2xl p-6">
-          <PhoneSelector value={selectedPhone} onChange={setPhone} />
+          <div className="flex flex-col gap-2">
+            <label className="text-xs uppercase tracking-widest text-vu-textSecondary">
+              ¿Qué celular tienes?
+            </label>
+            <input
+              type="text"
+              value={phoneModelText}
+              onChange={(e) => setPhoneText(e.target.value)}
+              placeholder="ej. iPhone 13, Galaxy S22, Redmi Note 11..."
+              className="w-full bg-vu-bg text-vu-textPrimary placeholder-vu-textSecondary/50 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-vu-accent"
+            />
+          </div>
           <YearsSlider value={yearsOfUse} onChange={setYears} />
-          <BatterySelector value={batteryState} onChange={setBattery} />
         </div>
 
         <button

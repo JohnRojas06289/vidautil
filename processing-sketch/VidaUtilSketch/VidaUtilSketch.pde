@@ -80,9 +80,10 @@ void draw() {
 
 void loadUserData() {
   try {
-    // Adjust path if needed: sketch is at processing-sketch/VidaUtilSketch/
-    // data/ is at ../../data/state.json from the sketch file
-    userData = loadJSONObject(sketchPath("../../data/state.json"));
+    java.io.File f = new java.io.File(sketchPath("../../data/state.json"));
+    if (f.exists()) {
+      userData = loadJSONObject(f.getAbsolutePath());
+    }
   } catch (Exception e) {
     userData = null;
   }
