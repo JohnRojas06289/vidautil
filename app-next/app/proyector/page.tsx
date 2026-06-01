@@ -23,6 +23,7 @@ export default function ProyectorPage() {
   const lastMarkerRef  = useRef<number>(-1);
   const cleanupRef     = useRef<(() => void) | undefined>(undefined);
   const audioCtxRef    = useRef<AudioContext | null>(null);
+  const scanMarkerRef  = useRef<() => void>(() => {});
 
   // ── Detection sound (Web Audio API — no external files) ───────────────────
   const playDetectSound = useCallback(() => {
@@ -253,6 +254,9 @@ export default function ProyectorPage() {
     });
   }, [fetchSession, playDetectSound]);
 
+  // Keep ref in sync so the interval always calls the latest scanMarker
+  useEffect(() => { scanMarkerRef.current = scanMarker; });
+
   // ── Start camera ───────────────────────────────────────────────────────────
   const startCamera = useCallback(async (deviceId?: string) => {
     cleanupRef.current?.();
@@ -277,7 +281,7 @@ export default function ProyectorPage() {
       setActiveCameraId(stream.getVideoTracks()[0].getSettings().deviceId);
       setStatus("active");
 
-      const scanInterval = setInterval(scanMarker, 120);
+      const scanInterval = setInterval(() => scanMarkerRef.current(), 120);
       animRef.current = requestAnimationFrame(drawFrame);
 
       const cleanup = () => {
@@ -290,7 +294,7 @@ export default function ProyectorPage() {
     } catch {
       setStatus("error");
     }
-  }, [drawFrame, scanMarker]);
+  }, [drawFrame]);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
