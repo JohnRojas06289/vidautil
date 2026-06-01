@@ -1,19 +1,26 @@
 "use client";
 import { useEffect, useRef } from "react";
 
-// 4x4_50 ArUco dictionary — bit patterns for IDs 0-9
-// Each entry is 16 bits (4x4 inner grid), row-major
-const ARUCO_4X4: Record<number, number[]> = {
-  0:  [0,1,0,0, 0,1,1,0, 0,0,1,0, 0,0,0,1],
-  1:  [1,1,0,1, 1,0,0,0, 0,1,0,0, 1,1,0,1],
-  2:  [0,0,1,1, 0,0,1,0, 1,0,0,1, 0,0,1,1],
-  3:  [1,0,1,0, 0,1,0,1, 1,0,1,0, 0,1,0,1],
-  4:  [1,1,0,0, 1,0,1,1, 0,1,1,0, 0,0,1,1],
-  5:  [0,1,1,0, 1,1,0,0, 0,0,1,1, 0,1,0,1],
-  6:  [1,0,0,1, 0,0,1,1, 1,1,0,0, 1,0,0,1],
-  7:  [0,0,1,0, 1,0,0,1, 0,1,1,0, 1,1,0,0],
-  8:  [1,1,1,0, 0,1,0,0, 1,0,1,1, 0,0,0,1],
-  9:  [0,1,0,1, 1,0,1,0, 0,1,0,1, 1,0,1,0],
+// ARUCO_MIP_36h12 dictionary — js-aruco2 default (nBits=36, 6×6 inner grid, 8×8 total)
+// codeList values are 36-bit hex numbers stored MSB-first, row-major.
+// BigInt is required because values exceed 2^32.
+function hexToBits36(hex: bigint): number[] {
+  const bits: number[] = [];
+  for (let i = 35; i >= 0; i--) bits.push(Number((hex >> BigInt(i)) & 1n));
+  return bits;
+}
+
+const ARUCO_MIP: Record<number, number[]> = {
+  0: hexToBits36(0xd2b63a09dn),
+  1: hexToBits36(0x6001134e5n),
+  2: hexToBits36(0x1206fbe72n),
+  3: hexToBits36(0xff8ad6cb4n),
+  4: hexToBits36(0x85da9bc49n),
+  5: hexToBits36(0xb461afe9cn),
+  6: hexToBits36(0x6db51fe13n),
+  7: hexToBits36(0x5248c541fn),
+  8: hexToBits36(0x8f34503n),
+  9: hexToBits36(0x8ea462ecen),
 };
 
 interface Props {
@@ -28,9 +35,9 @@ export function ArucoMarker({ markerId, size = 280 }: Props) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d")!;
-    const bits = ARUCO_4X4[markerId] ?? ARUCO_4X4[0];
+    const bits = ARUCO_MIP[markerId] ?? ARUCO_MIP[0];
 
-    const cells = 6; // 4 data + 1 border each side
+    const cells = 8; // 6 data + 1 border each side
     const cell = size / cells;
 
     // White background
@@ -39,15 +46,15 @@ export function ArucoMarker({ markerId, size = 280 }: Props) {
 
     // Black border (outer ring)
     ctx.fillStyle = "#000000";
-    ctx.fillRect(0, 0, size, cell);              // top
-    ctx.fillRect(0, size - cell, size, cell);    // bottom
-    ctx.fillRect(0, 0, cell, size);              // left
-    ctx.fillRect(size - cell, 0, cell, size);    // right
+    ctx.fillRect(0, 0, size, cell);           // top
+    ctx.fillRect(0, size - cell, size, cell); // bottom
+    ctx.fillRect(0, 0, cell, size);           // left
+    ctx.fillRect(size - cell, 0, cell, size); // right
 
-    // Inner 4x4 data bits
-    for (let row = 0; row < 4; row++) {
-      for (let col = 0; col < 4; col++) {
-        const bit = bits[row * 4 + col];
+    // Inner 6×6 data bits
+    for (let row = 0; row < 6; row++) {
+      for (let col = 0; col < 6; col++) {
+        const bit = bits[row * 6 + col];
         ctx.fillStyle = bit === 1 ? "#000000" : "#ffffff";
         ctx.fillRect(
           (col + 1) * cell,

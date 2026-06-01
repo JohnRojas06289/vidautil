@@ -211,8 +211,8 @@ export default function ProyectorPage() {
           markerBoundsRef.current = newBounds;
         }
 
-        // Fetch session only when marker ID changes
-        if (m.id !== lastMarkerRef.current) {
+        // Only handle IDs we actually assign (0-9); ignore false positives from environment
+        if (m.id >= 0 && m.id <= 9 && m.id !== lastMarkerRef.current) {
           lastMarkerRef.current = m.id;
           fetchSession(m.id);
         }
