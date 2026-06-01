@@ -22,6 +22,28 @@ export default function ProyectorPage() {
   const animRef        = useRef(0);
   const lastMarkerRef  = useRef<number>(-1);
   const cleanupRef     = useRef<(() => void) | undefined>(undefined);
+  const audioCtxRef    = useRef<AudioContext | null>(null);
+
+  // ── Detection sound (Web Audio API — no external files) ───────────────────
+  const playDetectSound = useCallback(() => {
+    if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
+    const ctx = audioCtxRef.current;
+    const now = ctx.currentTime;
+    const gain = ctx.createGain();
+    gain.connect(ctx.destination);
+
+    // Two-tone chime: base note + minor third up
+    [440, 523].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + i * 0.07);
+      osc.connect(gain);
+      osc.start(now + i * 0.07);
+      osc.stop(now + i * 0.07 + 0.35);
+    });
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+  }, []);
 
   const [status, setStatus]           = useState<"loading" | "active" | "error">("loading");
   const [detected, setDetected]       = useState(false);
@@ -214,6 +236,7 @@ export default function ProyectorPage() {
         // Only handle IDs we actually assign (0-9); ignore false positives from environment
         if (m.id >= 0 && m.id <= 9 && m.id !== lastMarkerRef.current) {
           lastMarkerRef.current = m.id;
+          playDetectSound();
           fetchSession(m.id);
         }
 
@@ -228,7 +251,7 @@ export default function ProyectorPage() {
         }
       }
     });
-  }, [fetchSession]);
+  }, [fetchSession, playDetectSound]);
 
   // ── Start camera ───────────────────────────────────────────────────────────
   const startCamera = useCallback(async (deviceId?: string) => {

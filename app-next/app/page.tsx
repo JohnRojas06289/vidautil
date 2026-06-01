@@ -8,9 +8,11 @@ import { calculateFootprint, findPhoneByText } from "@/lib/carbonCalc";
 
 // ─── Popular phones (chips de selección rápida) ───────────────────────────────
 const POPULAR = [
-  "iPhone 13", "iPhone 14", "iPhone 15",
-  "Galaxy S23", "Galaxy A52",
-  "Redmi Note 11", "Moto G60",
+  "iPhone 13", "iPhone 14", "iPhone 15", "iPhone 16",
+  "Galaxy S23", "Galaxy S24", "Galaxy A54", "Galaxy A15",
+  "Redmi Note 12", "Redmi Note 13", "POCO X5",
+  "Moto G54", "Moto G84",
+  "Pixel 8", "OnePlus Nord",
 ];
 
 // ─── Background particles ─────────────────────────────────────────────────────
