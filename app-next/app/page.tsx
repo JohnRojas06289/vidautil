@@ -280,67 +280,62 @@ export default function HomePage() {
               animate="center"
               exit="exit"
               transition={{ type: "spring", stiffness: 280, damping: 30 }}
-              className="absolute inset-0 flex flex-col px-6 pt-16 pb-8 gap-8"
+              className="absolute inset-0 flex flex-col px-6 pt-12 pb-6 gap-4 overflow-y-auto"
             >
               <button onClick={() => go(1)} className="flex items-center gap-1 text-vu-textSecondary text-sm w-fit">
                 <ChevronLeft className="w-4 h-4" /> Volver
               </button>
 
               <div>
-                <p className="text-vu-textSecondary text-xs uppercase tracking-widest mb-2">Paso 2 de 2</p>
-                <h2 className="text-3xl font-medium text-vu-textPrimary leading-tight">
-                  ¿Cuántos años<br />llevas con él?
+                <p className="text-vu-textSecondary text-xs uppercase tracking-widest mb-1">Paso 2 de 2</p>
+                <h2 className="text-2xl font-medium text-vu-textPrimary leading-tight">
+                  ¿Cuántos años llevas con él?
                 </h2>
               </div>
 
-              {/* Year buttons */}
-              <div className="grid grid-cols-4 gap-3">
-                {[1, 2, 3, 4, 5, 6, 7].map((y) => (
+              {/* Year buttons — fijos, compactos */}
+              <div className="grid grid-cols-4 gap-2">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((y) => (
                   <motion.button
                     key={y}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => selectYears(y)}
-                    className={`aspect-square rounded-2xl text-2xl font-medium transition-all flex items-center justify-center ${
+                    className={`h-14 rounded-xl text-xl font-medium transition-all flex items-center justify-center ${
                       years === y
-                        ? "bg-vu-accent text-vu-bg scale-105"
+                        ? "bg-vu-accent text-vu-bg"
                         : "bg-vu-bgAlt text-vu-textPrimary"
                     }`}
                   >
-                    {y}
+                    {y === 8 ? "8+" : y}
                   </motion.button>
                 ))}
-                <motion.button
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => selectYears(8)}
-                  className={`aspect-square rounded-2xl text-lg font-medium transition-all flex items-center justify-center ${
-                    years === 8
-                      ? "bg-vu-accent text-vu-bg scale-105"
-                      : "bg-vu-bgAlt text-vu-textPrimary"
-                  }`}
-                >
-                  8+
-                </motion.button>
               </div>
 
               {/* Live CO₂ preview */}
-              <AnimatePresence>
-                {live && years > 0 && (
+              <AnimatePresence mode="wait">
+                {live && years > 0 ? (
                   <motion.div
                     key={years}
-                    initial={{ opacity: 0, y: 12 }}
+                    initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-vu-bgAlt rounded-2xl p-6 flex flex-col items-center gap-1"
+                    exit={{ opacity: 0 }}
+                    className="bg-vu-bgAlt rounded-2xl p-5 flex flex-col items-center gap-1"
                   >
-                    <p className="text-vu-textSecondary text-xs uppercase tracking-widest">
-                      Ya evitaste
-                    </p>
-                    <p className="text-6xl font-medium text-vu-accentLight leading-none">
+                    <p className="text-vu-textSecondary text-xs uppercase tracking-widest">Ya evitaste</p>
+                    <p className="text-5xl font-medium text-vu-accentLight leading-none">
                       <CountUp value={live.totalAvoidedCO2} />
                     </p>
                     <p className="text-vu-textSecondary text-sm">kg de CO₂</p>
                     <p className="text-vu-textSecondary/60 text-xs mt-1">
-                      Medalla {live.medal === "gold" ? "🟡 Oro" : live.medal === "silver" ? "⚪ Plata" : "🟤 Bronce"}
+                      Medalla {live.medal === "gold" ? "Oro" : live.medal === "silver" ? "Plata" : "Bronce"}
                     </p>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="empty"
+                    className="bg-vu-bgAlt/40 rounded-2xl p-5 flex items-center justify-center"
+                  >
+                    <p className="text-vu-textSecondary/40 text-sm">Seleccioná un año para ver tu impacto</p>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -348,7 +343,7 @@ export default function HomePage() {
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={handleSubmit}
-                disabled={!live || years < 1}
+                disabled={years < 1}
                 className="w-full py-4 rounded-2xl bg-vu-accent text-vu-bg font-medium text-base disabled:opacity-30 flex items-center justify-center gap-2"
               >
                 Ver mi huella completa
