@@ -9,7 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@vercel/kv": "^3.0.0",
     "framer-motion": "^12.40.0",
+    "js-aruco2": "^2.0.0",
     "jsqr": "^1.4.0",
     "lucide-react": "^1.17.0",
     "next": "14.2.35",
