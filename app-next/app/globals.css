@@ -8,6 +8,20 @@ body {
   font-family: 'Inter', system-ui, sans-serif;
 }
 
+@keyframes float-up {
+  0%   { transform: translateY(0) scale(1);   opacity: 0.15; }
+  50%  { opacity: 0.35; }
+  100% { transform: translateY(-110vh) scale(1.4); opacity: 0; }
+}
+
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  background: #5DCAA5;
+  animation: float-up linear infinite;
+  pointer-events: none;
+}
+
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
