@@ -38,7 +38,8 @@ export function PhoneSelector({ value, onChange }: Props) {
           <label className="text-vu-textSecondary text-sm uppercase tracking-widest mt-2">Modelo</label>
           <div className="relative">
             <select
-              className="w-full appearance-none bg-vu-bgAlt text-vu-textPrimary rounded-xl px-4 py-3 pr-10 font-medium focus:outline-none focus:ring-2 focus:ring-vu-accent"
+              className="w-full appearance-none bg-vu-bgAlt text-vu-textPrimary rounded-xl px-4 py-3 pr-10 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vu-accent"
+              aria-label="Selecciona el modelo de tu celular"
               value={value?.id ?? ""}
               onChange={(e) => {
                 const found = phoneModels.find((p) => p.id === e.target.value);

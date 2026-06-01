@@ -2,12 +2,111 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Base ─────────────────────────────────────────────────────────────────── */
+html {
+  /* dvh: dynamic viewport height — corrects iOS Safari address bar bug */
+  --app-height: 100dvh;
+  /* Safe area insets for notch / home indicator */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+html {
+  color-scheme: dark;
+}
+
 body {
   background-color: #04342C;
   color: #E1F5EE;
   font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
 }
 
+.skip-link {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  transform: translateY(-200%);
+  background: #5dcaa5;
+  color: #04342c;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  z-index: 1000;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+/* ── Desktop: center app as mobile frame ─────────────────────────────────── */
+@media (min-width: 768px) {
+  body {
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, #0a6b52 0%, transparent 60%),
+      #02261f;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100dvh;
+    padding: 2.5rem 1rem;
+  }
+
+  body > div,
+  body > main {
+    width: 390px;
+    min-height: 780px;
+    border-radius: 44px;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 1px rgba(93,202,165,0.12),
+      0 0 0 10px rgba(4,52,44,0.9),
+      0 0 0 11px rgba(93,202,165,0.08),
+      0 32px 80px rgba(0,0,0,0.55),
+      0 8px 24px rgba(0,0,0,0.3);
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  /* Proyector page must stay fullscreen — override the frame */
+  body:has(.proyector-root) {
+    padding: 0;
+    align-items: stretch;
+  }
+  body:has(.proyector-root) > div {
+    width: 100vw;
+    min-height: 100dvh;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
+/* ── Safe area utilities ─────────────────────────────────────────────────── */
+.pt-safe  { padding-top:    var(--sat); }
+.pb-safe  { padding-bottom: var(--sab); }
+.pl-safe  { padding-left:   var(--sal); }
+.pr-safe  { padding-right:  var(--sar); }
+
+.mt-safe  { margin-top:    var(--sat); }
+.mb-safe  { margin-bottom: var(--sab); }
+
+/* ── Full screen utilities using dvh ─────────────────────────────────────── */
+.h-dvh    { height: 100dvh; }
+.min-h-dvh { min-height: 100dvh; }
+
+/* ── Scrolling ───────────────────────────────────────────────────────────── */
+.scroll-smooth-touch {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* ── Particles background animation ─────────────────────────────────────── */
 @keyframes float-up {
   0%   { transform: translateY(0) scale(1);   opacity: 0.15; }
   50%  { opacity: 0.35; }
@@ -22,6 +121,17 @@ body {
   pointer-events: none;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .particle {
+    animation: none;
+  }
+
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Range input ─────────────────────────────────────────────────────────── */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -29,13 +139,11 @@ input[type="range"] {
   cursor: pointer;
   width: 100%;
 }
-
 input[type="range"]::-webkit-slider-runnable-track {
   background: #085041;
   height: 6px;
   border-radius: 3px;
 }
-
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -45,17 +153,22 @@ input[type="range"]::-webkit-slider-thumb {
   width: 16px;
   border-radius: 50%;
 }
-
 input[type="range"]::-moz-range-track {
   background: #085041;
   height: 6px;
   border-radius: 3px;
 }
-
 input[type="range"]::-moz-range-thumb {
   background-color: #1D9E75;
   height: 16px;
   width: 16px;
   border-radius: 50%;
   border: none;
+}
+
+/* ── Focus ring accessible ───────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid #5DCAA5;
+  outline-offset: 2px;
+  border-radius: 4px;
 }

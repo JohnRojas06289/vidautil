@@ -50,10 +50,11 @@ export function findPhoneByText(text: string): PhoneModel {
 export function calculateFootprint(
   model: PhoneModel,
   yearsOfUse: number,
-  modelName: string
+  modelName: string,
+  usageMultiplier = 1.0,
 ): FootprintResult {
   const amortization = model.productionCO2 / Math.max(yearsOfUse, 1);
-  const annualFootprint = amortization + model.annualUseCO2;
+  const annualFootprint = amortization + model.annualUseCO2 * usageMultiplier;
 
   const yearsAvoided = Math.max(yearsOfUse - 2, 0);
   const totalAvoidedCO2 =

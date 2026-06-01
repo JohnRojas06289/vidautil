@@ -1,6 +1,13 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { SessionData } from "@/app/api/session/route";
+import jsQR from "jsqr";
+interface SessionData {
+  modelName: string;
+  years: number;
+  co2: number;
+  annualFootprint: number;
+  medal: string;
+}
 
 interface Particle {
   x: number; y: number;
@@ -20,7 +27,7 @@ export default function ProyectorPage() {
   const markerBoundsRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const lostFramesRef  = useRef(0);
   const animRef        = useRef(0);
-  const lastMarkerRef  = useRef<number>(-1);
+  const lastQRRef      = useRef<string>("");
   const cleanupRef     = useRef<(() => void) | undefined>(undefined);
   const audioCtxRef    = useRef<AudioContext | null>(null);
   const scanMarkerRef  = useRef<() => void>(() => {});
@@ -50,32 +57,82 @@ export default function ProyectorPage() {
   const [detected, setDetected]       = useState(false);
   const [cameras, setCameras]         = useState<MediaDeviceInfo[]>([]);
   const [activeCameraId, setActiveCameraId] = useState<string | undefined>();
+  const [demoMode, setDemoMode]       = useState(false);
 
-  // ── Fetch session when new marker is detected ──────────────────────────────
-  const fetchSession = useCallback(async (markerId: number) => {
+  // ── Mago de Oz: press D to inject demo session (no QR needed) ─────────────
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "d" && e.key !== "D") return;
+      const DEMO_SESSIONS: SessionData[] = [
+        { modelName: "iPhone 12", years: 4, co2: 130, annualFootprint: 19, medal: "gold" },
+        { modelName: "Galaxy S21", years: 3, co2: 65, annualFootprint: 22, medal: "silver" },
+        { modelName: "Redmi Note 12", years: 2, co2: 20, annualFootprint: 17, medal: "bronze" },
+      ];
+      const pick = DEMO_SESSIONS[Math.floor(Math.random() * DEMO_SESSIONS.length)];
+      sessionRef.current = pick;
+      const W = canvasRef.current?.width ?? 1280;
+      const H = canvasRef.current?.height ?? 720;
+      markerBoundsRef.current = { x: W / 2 - 60, y: H / 2 - 80, w: 120, h: 120 };
+      lastQRRef.current = "demo";
+      setDemoMode(true);
+      setDetected(true);
+      playDetectSound();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [playDetectSound]);
+
+  // ── Parse session data directly from QR payload ───────────────────────────
+  const parseQR = useCallback((raw: string) => {
     try {
-      const res = await fetch(`/api/session?markerId=${markerId}`);
-      const data = await res.json();
-      if (data.ok) sessionRef.current = data.session;
-    } catch { /* silent */ }
+      const p = JSON.parse(atob(raw));
+      sessionRef.current = {
+        modelName: p.m,
+        years: p.y,
+        co2: p.c,
+        annualFootprint: p.a,
+        medal: p.x,
+      };
+    } catch { /* malformed QR — ignore */ }
   }, []);
 
   // ── Particle helpers ───────────────────────────────────────────────────────
-  const spawnParticles = useCallback((cx: number, topY: number, af: number) => {
-    const count = Math.round(Math.min(Math.max(af / 5, 3), 10));
+  const spawnParticles = useCallback((
+    pLeft: number, pRight: number, pTop: number, pBottom: number, af: number
+  ) => {
+    const pCx = (pLeft + pRight) / 2;
+    const pCy = (pTop + pBottom) / 2;
+    const pw  = pRight - pLeft;
+    const ph  = pBottom - pTop;
+    const count = Math.round(Math.min(Math.max(af / 4, 6), 18));
+
     for (let i = 0; i < count; i++) {
+      // Random point on phone perimeter
+      const perimeter = 2 * (pw + ph);
+      const t = Math.random() * perimeter;
+      let sx: number, sy: number;
+      if (t < pw)             { sx = pLeft + t;            sy = pTop; }
+      else if (t < pw + ph)   { sx = pRight;               sy = pTop + (t - pw); }
+      else if (t < 2*pw + ph) { sx = pRight - (t-pw-ph);  sy = pBottom; }
+      else                    { sx = pLeft;                sy = pBottom - (t-2*pw-ph); }
+
+      // Outward velocity from center
+      const dx = sx - pCx, dy = sy - pCy;
+      const d  = Math.sqrt(dx*dx + dy*dy) || 1;
+      const speed = Math.random() * 1.3 + 0.5;
+
       particlesRef.current.push({
-        x: cx + (Math.random() - 0.5) * 70,
-        y: topY + Math.random() * 10,
-        vx: (Math.random() - 0.5) * 1.4,
-        vy: -(Math.random() * 2 + 0.8),
-        life: Math.random() * 130 + 100,
-        maxLife: 230,
-        size: Math.random() * 32 + 18,
+        x: sx + (Math.random() - 0.5) * 6,
+        y: sy + (Math.random() - 0.5) * 6,
+        vx: (dx / d) * speed + (Math.random() - 0.5) * 0.25,
+        vy: (dy / d) * speed + (Math.random() - 0.5) * 0.25,
+        life: Math.random() * 90 + 70,
+        maxLife: 160,
+        size: Math.random() * 48 + 24,
       });
     }
-    if (particlesRef.current.length > 500)
-      particlesRef.current = particlesRef.current.slice(-500);
+    if (particlesRef.current.length > 700)
+      particlesRef.current = particlesRef.current.slice(-700);
   }, []);
 
   // ── Main render loop ───────────────────────────────────────────────────────
@@ -97,33 +154,48 @@ export default function ProyectorPage() {
 
     if (bounds && session) {
       const cx  = W - (bounds.x + bounds.w / 2);
-      const top = bounds.y - bounds.h * 0.5;
+      const ph  = bounds.h * 3;
+      const pw  = bounds.w * 1.3;
+      const pLeft   = cx - pw / 2;
+      const pRight  = cx + pw / 2;
+      const pTop    = bounds.y + bounds.h / 2 - ph / 2;
+      const pBottom = pTop + ph;
 
-      spawnParticles(cx, top, session.annualFootprint);
+      spawnParticles(pLeft, pRight, pTop, pBottom, session.annualFootprint);
 
-      // Draw particles
+      // Draw particles — radial gradient blobs
       for (let i = particlesRef.current.length - 1; i >= 0; i--) {
         const p = particlesRef.current[i];
-        p.x += p.vx + (Math.random() - 0.5) * 0.4;
-        p.y += p.vy;
-        p.vy *= 0.99;
+        p.x  += p.vx + (Math.random() - 0.5) * 0.25;
+        p.y  += p.vy + (Math.random() - 0.5) * 0.25;
+        p.vx *= 0.985;
+        p.vy *= 0.985;
         p.life--;
         if (p.life <= 0) { particlesRef.current.splice(i, 1); continue; }
-        const alpha = Math.min(p.life / p.maxLife, 0.55);
+
+        const t = p.life / p.maxLife;                       // 1→0
+        const alpha = t < 0.25 ? t / 0.25 * 0.52 : t * 0.52;
+        const r = p.size / 2;
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+        g.addColorStop(0,   `rgba(93,202,165,${alpha})`);
+        g.addColorStop(0.5, `rgba(93,202,165,${alpha * 0.45})`);
+        g.addColorStop(1,   `rgba(93,202,165,0)`);
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(93,202,165,${alpha})`;
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = g;
         ctx.fill();
       }
 
-      // Phone silhouette
-      const ph = bounds.h * 3;
-      const pw = bounds.w * 1.3;
-      ctx.strokeStyle = "rgba(93,202,165,0.5)";
-      ctx.lineWidth = 2;
+      // Phone silhouette — glow + outline
+      ctx.save();
+      ctx.shadowBlur  = 18;
+      ctx.shadowColor = "rgba(93,202,165,0.55)";
+      ctx.strokeStyle = "rgba(93,202,165,0.75)";
+      ctx.lineWidth   = 2;
       ctx.beginPath();
-      ctx.roundRect(cx - pw / 2, bounds.y + bounds.h / 2 - ph / 2, pw, ph, 14);
+      ctx.roundRect(pLeft, pTop, pw, ph, 14);
       ctx.stroke();
+      ctx.restore();
 
       // Marker corner brackets
       const corners = [
@@ -177,12 +249,19 @@ export default function ProyectorPage() {
       // Fade remaining particles
       for (let i = particlesRef.current.length - 1; i >= 0; i--) {
         const p = particlesRef.current[i];
-        p.life -= 4;
+        p.x  += p.vx * 0.5;
+        p.y  += p.vy * 0.5;
+        p.life -= 5;
         if (p.life <= 0) { particlesRef.current.splice(i, 1); continue; }
-        const alpha = Math.min(p.life / p.maxLife, 0.55);
+        const alpha = (p.life / p.maxLife) * 0.4;
+        const r = p.size / 2;
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+        g.addColorStop(0,   `rgba(93,202,165,${alpha})`);
+        g.addColorStop(0.5, `rgba(93,202,165,${alpha * 0.4})`);
+        g.addColorStop(1,   `rgba(93,202,165,0)`);
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(93,202,165,${alpha})`;
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = g;
         ctx.fill();
       }
 
@@ -198,7 +277,7 @@ export default function ProyectorPage() {
     animRef.current = requestAnimationFrame(drawFrame);
   }, [spawnParticles]);
 
-  // ── ArUco scan loop ────────────────────────────────────────────────────────
+  // ── QR scan loop ──────────────────────────────────────────────────────────
   const scanMarker = useCallback(() => {
     const canvas = canvasRef.current;
     const video  = videoRef.current;
@@ -210,49 +289,45 @@ export default function ProyectorPage() {
     octx.drawImage(video, 0, 0, off.width, off.height);
     const imageData = octx.getImageData(0, 0, off.width, off.height);
 
-    import("js-aruco2").then(({ AR }) => {
-      const detector = new AR.Detector();
-      const markers  = detector.detect(imageData);
+    const code = jsQR(imageData.data, imageData.width, imageData.height);
 
-      if (markers.length > 0) {
-        const m = markers[0];
-        const xs = m.corners.map((c: {x:number}) => c.x);
-        const ys = m.corners.map((c: {y:number}) => c.y);
-        const x  = Math.min(...xs), y = Math.min(...ys);
-        const w  = Math.max(...xs) - x, h = Math.max(...ys) - y;
-        const newBounds = { x, y, w, h };
+    if (code) {
+      const loc = code.location;
+      const xs = [loc.topLeftCorner.x, loc.topRightCorner.x, loc.bottomLeftCorner.x, loc.bottomRightCorner.x];
+      const ys = [loc.topLeftCorner.y, loc.topRightCorner.y, loc.bottomLeftCorner.y, loc.bottomRightCorner.y];
+      const x  = Math.min(...xs), y = Math.min(...ys);
+      const w  = Math.max(...xs) - x, h = Math.max(...ys) - y;
+      const newBounds = { x, y, w, h };
 
-        if (markerBoundsRef.current) {
-          const k = 0.35;
-          markerBoundsRef.current = {
-            x: markerBoundsRef.current.x + (newBounds.x - markerBoundsRef.current.x) * k,
-            y: markerBoundsRef.current.y + (newBounds.y - markerBoundsRef.current.y) * k,
-            w: markerBoundsRef.current.w + (newBounds.w - markerBoundsRef.current.w) * k,
-            h: markerBoundsRef.current.h + (newBounds.h - markerBoundsRef.current.h) * k,
-          };
-        } else {
-          markerBoundsRef.current = newBounds;
-        }
-
-        // Only handle IDs we actually assign (0-9); ignore false positives from environment
-        if (m.id >= 0 && m.id <= 9 && m.id !== lastMarkerRef.current) {
-          lastMarkerRef.current = m.id;
-          playDetectSound();
-          fetchSession(m.id);
-        }
-
-        lostFramesRef.current = 0;
-        setDetected(true);
+      if (markerBoundsRef.current) {
+        const k = 0.35;
+        markerBoundsRef.current = {
+          x: markerBoundsRef.current.x + (newBounds.x - markerBoundsRef.current.x) * k,
+          y: markerBoundsRef.current.y + (newBounds.y - markerBoundsRef.current.y) * k,
+          w: markerBoundsRef.current.w + (newBounds.w - markerBoundsRef.current.w) * k,
+          h: markerBoundsRef.current.h + (newBounds.h - markerBoundsRef.current.h) * k,
+        };
       } else {
-        lostFramesRef.current++;
-        if (lostFramesRef.current > 12) {
-          markerBoundsRef.current = null;
-          lastMarkerRef.current   = -1;
-          setDetected(false);
-        }
+        markerBoundsRef.current = newBounds;
       }
-    });
-  }, [fetchSession, playDetectSound]);
+
+      if (code.data !== lastQRRef.current) {
+        lastQRRef.current = code.data;
+        playDetectSound();
+        parseQR(code.data);
+      }
+
+      lostFramesRef.current = 0;
+      setDetected(true);
+    } else {
+      lostFramesRef.current++;
+      if (lostFramesRef.current > 12) {
+        markerBoundsRef.current = null;
+        lastQRRef.current       = "";
+        setDetected(false);
+      }
+    }
+  }, [parseQR, playDetectSound]);
 
   // Keep ref in sync so the interval always calls the latest scanMarker
   useEffect(() => { scanMarkerRef.current = scanMarker; });
@@ -303,7 +378,7 @@ export default function ProyectorPage() {
   }, [startCamera]);
 
   return (
-    <div className="relative w-screen h-screen bg-black overflow-hidden">
+    <main id="main-content" className="proyector-root relative w-screen h-screen bg-black overflow-hidden">
       <video ref={videoRef} className="hidden" playsInline muted />
       <canvas ref={canvasRef} className="w-full h-full object-cover" />
 
@@ -330,7 +405,14 @@ export default function ProyectorPage() {
 
       {status === "active" && detected && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-vu-accent/90 text-vu-bg text-xs font-medium px-4 py-2 rounded-full">
-          Código detectado
+          {demoMode ? "🎭 Modo demo activo" : "Código detectado"}
+        </div>
+      )}
+
+      {/* Mago de Oz hint — only shown when no session active */}
+      {status === "active" && !detected && (
+        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 text-white/70 text-xs bg-black/35 px-3 py-1.5 rounded-full backdrop-blur-sm">
+          Presioná D para modo demo
         </div>
       )}
 
@@ -353,6 +435,6 @@ export default function ProyectorPage() {
       )}
 
       <div className="absolute bottom-5 right-5 text-vu-textSecondary/30 text-xs">VidaÚtil</div>
-    </div>
+    </main>
   );
 }

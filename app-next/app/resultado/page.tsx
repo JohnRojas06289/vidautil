@@ -67,7 +67,7 @@ function ResultView({ data }: { data: ResultData }) {
   const medal = MEDAL_COLORS[data.medal];
 
   return (
-    <main className="min-h-screen bg-vu-bg flex flex-col items-center px-6 py-12 gap-8">
+    <main id="main-content" className="min-h-screen bg-vu-bg flex flex-col items-center px-6 py-12 gap-8">
       {/* Header */}
       <div className="text-center">
         <p className="text-vu-textSecondary text-xs uppercase tracking-widest mb-1">Tu huella</p>
@@ -104,6 +104,8 @@ function ResultView({ data }: { data: ResultData }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
         className="text-center -mt-8"
+        aria-live="polite"
+        aria-atomic="true"
       >
         <p className="text-vu-accentLight text-7xl font-medium leading-none">{data.co2}</p>
         <p className="text-vu-textSecondary text-sm mt-2">kg de CO₂ no emitidos</p>

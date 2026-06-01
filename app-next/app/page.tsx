@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { ArrowRight, Monitor, ChevronLeft } from "lucide-react";
 import { useVidaUtilStore } from "@/lib/store";
 import { calculateFootprint, findPhoneByText } from "@/lib/carbonCalc";
@@ -23,15 +23,6 @@ const PARTICLES = Array.from({ length: 18 }, (_, i) => ({
   duration: `${8 + (i % 7) * 2.5}s`,
   delay: `${(i * 0.9) % 6}s`,
 }));
-
-// ─── Live CO₂ estimate ────────────────────────────────────────────────────────
-function useLiveCO2(model: string, years: number) {
-  return useMemo(() => {
-    if (!model || years < 1) return null;
-    const phone = findPhoneByText(model);
-    return calculateFootprint(phone, years, model);
-  }, [model, years]);
-}
 
 // ─── Animated counter ────────────────────────────────────────────────────────
 function CountUp({ value }: { value: number }) {
@@ -64,16 +55,26 @@ const slide = {
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function HomePage() {
   const router = useRouter();
-  const { setPhoneText, setYears, setFootprint } = useVidaUtilStore();
+  const reduceMotion = useReducedMotion();
+  const { setPhoneText, setYears, setFootprint, setPlanChange } = useVidaUtilStore();
 
-  const [step, setStep] = useState(0);         // 0=intro 1=phone 2=years
+  const [step, setStep] = useState(0);         // 0=intro 1=phone 2=years 3=hours 4=plan
   const [dir, setDir] = useState(1);
   const [phone, setPhone] = useState("");
   const [customPhone, setCustomPhone] = useState("");
   const [years, setYearsLocal] = useState(0);
+  const [hours, setHours] = useState("");      // "low"|"mid"|"high"|"very"
+  const [plan, setPlan] = useState("");
+
+  const HOURS_MULTIPLIER: Record<string, number> = { low: 0.7, mid: 1.0, high: 1.3, very: 1.6 };
 
   const activePhone = phone === "__other__" ? customPhone : phone;
-  const live = useLiveCO2(activePhone, years);
+  const multiplier = HOURS_MULTIPLIER[hours] ?? 1.0;
+  const live = useMemo(() => {
+    if (!activePhone || years < 1) return null;
+    const p = findPhoneByText(activePhone);
+    return calculateFootprint(p, years, activePhone, multiplier);
+  }, [activePhone, years, multiplier]);
 
   function go(next: number) {
     setDir(next > step ? 1 : -1);
@@ -82,7 +83,8 @@ export default function HomePage() {
 
   function selectPhone(name: string) {
     setPhone(name);
-    setTimeout(() => go(2), 180);
+    if (reduceMotion) go(2);
+    else setTimeout(() => go(2), 180);
   }
 
   function selectYears(y: number) {
@@ -94,11 +96,12 @@ export default function HomePage() {
     setPhoneText(activePhone);
     setYears(years);
     setFootprint(live);
+    setPlanChange(plan);
     router.push("/huella");
   }
 
   return (
-    <div className="relative min-h-screen bg-vu-bg overflow-hidden flex flex-col">
+    <main id="main-content" className="relative min-h-dvh bg-vu-bg overflow-hidden flex flex-col">
 
       {/* ── Floating particle background ── */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -113,7 +116,7 @@ export default function HomePage() {
               height: p.size,
               animationDuration: p.duration,
               animationDelay: p.delay,
-              opacity: live ? 0.25 + (live.totalAvoidedCO2 / 200) : 0.12,
+              opacity: reduceMotion ? 0 : live ? 0.25 + (live.totalAvoidedCO2 / 200) : 0.12,
             }}
           />
         ))}
@@ -132,7 +135,7 @@ export default function HomePage() {
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{ type: "spring", stiffness: 280, damping: 30 }}
+              transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 280, damping: 30 }}
               className="absolute inset-0 flex flex-col items-center justify-center px-6 gap-8"
             >
               <div className="text-center flex flex-col items-center gap-4">
@@ -169,7 +172,7 @@ export default function HomePage() {
               <motion.button
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
+                transition={reduceMotion ? { duration: 0 } : { delay: 0.5 }}
                 onClick={() => go(1)}
                 className="flex items-center gap-3 bg-vu-accent text-vu-bg px-8 py-4 rounded-2xl text-base font-medium"
               >
@@ -180,7 +183,7 @@ export default function HomePage() {
               <motion.button
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.7 }}
+                transition={reduceMotion ? { duration: 0 } : { delay: 0.7 }}
                 onClick={() => router.push("/proyector")}
                 className="flex items-center gap-2 text-vu-textSecondary text-sm"
               >
@@ -199,7 +202,7 @@ export default function HomePage() {
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{ type: "spring", stiffness: 280, damping: 30 }}
+              transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 280, damping: 30 }}
               className="absolute inset-0 flex flex-col px-6 pt-16 pb-8 gap-8 overflow-y-auto"
             >
               <button onClick={() => go(0)} className="flex items-center gap-1 text-vu-textSecondary text-sm w-fit">
@@ -207,7 +210,7 @@ export default function HomePage() {
               </button>
 
               <div>
-                <p className="text-vu-textSecondary text-xs uppercase tracking-widest mb-2">Paso 1 de 2</p>
+                <p className="text-vu-textSecondary text-xs uppercase tracking-widest mb-2">Paso 1 de 4</p>
                 <h2 className="text-3xl font-medium text-vu-textPrimary leading-tight">
                   ¿Cuál es<br />tu celular?
                 </h2>
@@ -220,10 +223,10 @@ export default function HomePage() {
                     key={name}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => selectPhone(name)}
-                    className={`py-4 px-4 rounded-2xl text-sm font-medium text-left transition-all ${
-                      phone === name
-                        ? "bg-vu-accent text-vu-bg"
-                        : "bg-vu-bgAlt text-vu-textPrimary"
+                      className={`py-4 px-4 rounded-2xl text-sm font-medium text-left transition-colors ${
+                        phone === name
+                          ? "bg-vu-accent text-vu-bg"
+                          : "bg-vu-bgAlt text-vu-textPrimary"
                     }`}
                   >
                     {name}
@@ -232,7 +235,7 @@ export default function HomePage() {
                 <motion.button
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setPhone("__other__")}
-                  className={`py-4 px-4 rounded-2xl text-sm font-medium text-left col-span-2 transition-all ${
+                  className={`py-4 px-4 rounded-2xl text-sm font-medium text-left col-span-2 transition-colors ${
                     phone === "__other__"
                       ? "bg-vu-bgAlt border border-vu-accent text-vu-textPrimary"
                       : "bg-vu-bgAlt text-vu-textSecondary"
@@ -251,12 +254,13 @@ export default function HomePage() {
                     className="overflow-hidden"
                   >
                     <input
-                      autoFocus
                       type="text"
+                      name="customPhone"
+                      aria-label="Ingresa el modelo de tu celular"
                       value={customPhone}
                       onChange={(e) => setCustomPhone(e.target.value)}
-                      placeholder="ej. Galaxy S21, Redmi 9..."
-                      className="w-full bg-vu-bg text-vu-textPrimary placeholder-vu-textSecondary/40 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-vu-accent"
+                      placeholder="ej. Galaxy S21, Redmi 9…"
+                      className="w-full bg-vu-bg text-vu-textPrimary placeholder-vu-textSecondary/40 rounded-xl px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-vu-accent"
                     />
                     <motion.button
                       whileTap={{ scale: 0.97 }}
@@ -281,7 +285,7 @@ export default function HomePage() {
               initial="enter"
               animate="center"
               exit="exit"
-              transition={{ type: "spring", stiffness: 280, damping: 30 }}
+              transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 280, damping: 30 }}
               className="absolute inset-0 flex flex-col px-6 pt-12 pb-6 gap-4 overflow-y-auto"
             >
               <button onClick={() => go(1)} className="flex items-center gap-1 text-vu-textSecondary text-sm w-fit">
@@ -289,7 +293,7 @@ export default function HomePage() {
               </button>
 
               <div>
-                <p className="text-vu-textSecondary text-xs uppercase tracking-widest mb-1">Paso 2 de 2</p>
+                <p className="text-vu-textSecondary text-xs uppercase tracking-widest mb-1">Paso 2 de 4</p>
                 <h2 className="text-2xl font-medium text-vu-textPrimary leading-tight">
                   ¿Cuántos años llevas con él?
                 </h2>
@@ -302,7 +306,7 @@ export default function HomePage() {
                     key={y}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => selectYears(y)}
-                    className={`h-14 rounded-xl text-xl font-medium transition-all flex items-center justify-center ${
+                    className={`h-14 rounded-xl text-xl font-medium transition-colors flex items-center justify-center ${
                       years === y
                         ? "bg-vu-accent text-vu-bg"
                         : "bg-vu-bgAlt text-vu-textPrimary"
@@ -322,6 +326,8 @@ export default function HomePage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     className="bg-vu-bgAlt rounded-2xl p-5 flex flex-col items-center gap-1"
+                    aria-live="polite"
+                    aria-atomic="true"
                   >
                     <p className="text-vu-textSecondary text-xs uppercase tracking-widest">Ya evitaste</p>
                     <p className="text-5xl font-medium text-vu-accentLight leading-none">
@@ -344,9 +350,119 @@ export default function HomePage() {
 
               <motion.button
                 whileTap={{ scale: 0.97 }}
-                onClick={handleSubmit}
+                onClick={() => years >= 1 && go(3)}
                 disabled={years < 1}
                 className="w-full py-4 rounded-2xl bg-vu-accent text-vu-bg font-medium text-base disabled:opacity-30 flex items-center justify-center gap-2"
+              >
+                Siguiente
+                <ArrowRight className="w-5 h-5" />
+              </motion.button>
+            </motion.div>
+          )}
+
+          {/* STEP 3 — Daily hours */}
+          {step === 3 && (
+            <motion.div
+              key="hours"
+              custom={dir}
+              variants={slide}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 280, damping: 30 }}
+              className="absolute inset-0 flex flex-col px-6 pt-16 pb-8 gap-8"
+            >
+              <button onClick={() => go(2)} className="flex items-center gap-1 text-vu-textSecondary text-sm w-fit">
+                <ChevronLeft className="w-4 h-4" /> Volver
+              </button>
+
+              <div className="flex flex-col gap-1">
+                <p className="text-vu-textSecondary text-xs uppercase tracking-widest">Paso 3 de 4</p>
+                <h2 className="text-2xl font-medium text-vu-textPrimary leading-tight">
+                  ¿Cuántas horas al día<br />usás tu celular?
+                </h2>
+                <p className="text-vu-textSecondary text-xs mt-1">Incluye redes sociales, mensajes, entretenimiento</p>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                {[
+                  { key: "low",  label: "Poco",        sub: "Menos de 2 horas",   icon: "🌿" },
+                  { key: "mid",  label: "Normal",       sub: "Entre 2 y 5 horas",  icon: "📱" },
+                  { key: "high", label: "Bastante",     sub: "Entre 5 y 8 horas",  icon: "⚡" },
+                  { key: "very", label: "Todo el día",  sub: "Más de 8 horas",     icon: "🔥" },
+                ].map(({ key, label, sub, icon }) => (
+                  <motion.button
+                    key={key}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => { setHours(key); setTimeout(() => go(4), 180); }}
+                    className={`flex items-center gap-4 px-5 py-4 rounded-2xl text-left transition-colors ${
+                      hours === key
+                        ? "bg-vu-accent text-vu-bg"
+                        : "bg-vu-bgAlt text-vu-textPrimary"
+                    }`}
+                  >
+                    <span className="text-2xl">{icon}</span>
+                    <div>
+                      <p className="font-medium text-sm">{label}</p>
+                      <p className={`text-xs ${hours === key ? "text-vu-bg/70" : "text-vu-textSecondary"}`}>{sub}</p>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* STEP 4 — Plan to change */}
+          {step === 4 && (
+            <motion.div
+              key="plan"
+              custom={dir}
+              variants={slide}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 280, damping: 30 }}
+              className="absolute inset-0 flex flex-col px-6 pt-16 pb-8 gap-8"
+            >
+              <button onClick={() => go(3)} className="flex items-center gap-1 text-vu-textSecondary text-sm w-fit">
+                <ChevronLeft className="w-4 h-4" /> Volver
+              </button>
+
+              <div className="flex flex-col gap-1">
+                <p className="text-vu-textSecondary text-xs uppercase tracking-widest">Paso 4 de 4</p>
+                <h2 className="text-2xl font-medium text-vu-textPrimary leading-tight">
+                  ¿Pensás cambiarte<br />de celular pronto?
+                </h2>
+                <p className="text-vu-textSecondary text-xs mt-1">Tu respuesta personaliza el resultado</p>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                {[
+                  { key: "no",    label: "No, lo quiero seguir usando",   sub: "Quiero sacarle el máximo provecho" },
+                  { key: "maybe", label: "Tal vez en el próximo año",      sub: "Lo estoy pensando" },
+                  { key: "yes",   label: "Sí, ya estoy buscando opciones", sub: "Quiero renovar" },
+                ].map(({ key, label, sub }) => (
+                  <motion.button
+                    key={key}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => setPlan(key)}
+                    className={`flex flex-col gap-0.5 px-5 py-4 rounded-2xl text-left transition-colors ${
+                      plan === key
+                        ? "bg-vu-accent text-vu-bg"
+                        : "bg-vu-bgAlt text-vu-textPrimary"
+                    }`}
+                  >
+                    <p className="font-medium text-sm">{label}</p>
+                    <p className={`text-xs ${plan === key ? "text-vu-bg/70" : "text-vu-textSecondary"}`}>{sub}</p>
+                  </motion.button>
+                ))}
+              </div>
+
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={handleSubmit}
+                disabled={!plan || !live}
+                className="w-full py-4 rounded-2xl bg-vu-accent text-vu-bg font-medium text-base disabled:opacity-30 flex items-center justify-center gap-2 mt-auto"
               >
                 Ver mi huella completa
                 <ArrowRight className="w-5 h-5" />
@@ -360,16 +476,16 @@ export default function HomePage() {
       {/* ── Step dots ── */}
       {step > 0 && (
         <div className="relative z-10 flex justify-center gap-2 pb-6">
-          {[1, 2].map((s) => (
+          {[1, 2, 3, 4].map((s) => (
             <div
               key={s}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
+              className={`h-1.5 rounded-full transition-[width,background-color] duration-300 ${
                 step === s ? "w-6 bg-vu-accent" : "w-1.5 bg-vu-bgAlt"
               }`}
             />
           ))}
         </div>
       )}
-    </div>
+    </main>
   );
 }

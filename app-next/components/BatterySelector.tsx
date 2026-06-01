@@ -26,6 +26,7 @@ export function BatterySelector({ value, onChange }: Props) {
             key={v}
             onClick={() => onChange(v)}
             title={label}
+            aria-label={label}
             className={`flex-1 flex flex-col items-center gap-1 rounded-xl py-3 transition-colors ${
               value === v
                 ? "bg-vu-accent text-vu-bg"
